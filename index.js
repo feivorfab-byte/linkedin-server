@@ -22,8 +22,8 @@ const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 //  - IMAGE_MODEL: Claude 3.5 Sonnet for image analysis
 //  - TEXT_MODEL: Claude 3.5 Sonnet for text generation
 // =====================================================
-const IMAGE_MODEL = "claude-3-5-sonnet-20241022";
-const TEXT_MODEL = "claude-3-5-sonnet-20241022";
+const IMAGE_MODEL = "claude-sonnet-4-20250514";
+const TEXT_MODEL = "claude-sonnet-4-20250514";
 
 // =====================================================
 //  BASE CLAUDE CALLER
