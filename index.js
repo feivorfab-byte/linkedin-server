@@ -14,8 +14,8 @@ app.use(express.json({ limit: '50mb' }));
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 
-// UPDATED: Use the latest 3.5 Sonnet model
-const MODEL_NAME = 'claude-3-5-sonnet-20240620';
+// UPDATED: Using your available Sonnet 4.5 Model
+const MODEL_NAME = 'claude-sonnet-4-5-20250929';
 
 async function callClaude(messages) {
   if (!CLAUDE_API_KEY) throw new Error("Server missing CLAUDE_API_KEY");
@@ -61,7 +61,6 @@ app.post('/api/analyze-images', async (req, res) => {
     const messageContent = [{ type: "text", text: prompt }];
     
     images.forEach(img => {
-      // Ensure base64 is clean
       const base64Data = img.includes('base64,') ? img.split('base64,')[1] : img;
       messageContent.push({
         type: "image",
