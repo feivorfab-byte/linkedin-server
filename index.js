@@ -2,19 +2,20 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const axios = require('axios');
-const path = require('path');
+const helmet = require('helmet');
 
 dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// ALLOWS THE UI TO LOAD (Removes the security block)
+app.use(helmet());
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.static('public'));
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
-const MODEL_NAME = 'claude-sonnet-4-5-20250929';
+// YOUR SPECIFIED MODEL
+const MODEL_NAME = 'claude-sonnet-4-5-20250929'; 
 
 async function callClaude(messages, systemPrompt) {
   if (!CLAUDE_API_KEY) throw new Error("Server missing CLAUDE_API_KEY");
@@ -45,9 +46,14 @@ async function callClaude(messages, systemPrompt) {
 
 app.post('/api/analyze-images', async (req, res) => {
   try {
-    const { images } = req.body;
+    const { images, template } = req.body;
     
-    const systemPrompt = `You are a Lead Fabricator. Analyze photos to extract technical details.`;
+    // DYNAMIC SYSTEM PROMPT
+    let role = "You are a Lead Fabricator.";
+    if (template === 'Technical') role = "You are a Senior Structural Engineer for exhibits.";
+    if (template === 'Rush') role = "You are a Production Manager focused on deadlines and logistics.";
+
+    const systemPrompt = `${role} Analyze photos to extract technical details.`;
     
     const userPrompt = `Analyze these project photos for a LinkedIn post.
     Generate 3 distinct questions for the builder to answer.
@@ -82,11 +88,16 @@ app.post('/api/analyze-images', async (req, res) => {
 
 app.post('/api/generate-post', async (req, res) => {
   try {
-    const { question, answer } = req.body;
+    const { question, answer, template } = req.body;
     
-    // ADAM SAVAGE PERSONA
-    const systemPrompt = `You are a Master Fabricator. Your writing style is enthusiastic, technical, and accessible (like Adam Savage).
-    Traits: Geek out on details, use active verbs, no corporate jargon.`;
+    // DYNAMIC PERSONAS
+    const personas = {
+      General: "You are a Master Fabricator (Adam Savage style). Enthusiastic, technical, and accessible.",
+      Technical: "You are a Technical Director. Precise, detailed, focusing on tolerances and engineering.",
+      Rush: "You are a fast-paced Shop Foreman. Short sentences, punchy, focused on getting it done."
+    };
+
+    const systemPrompt = personas[template] || personas['General'];
 
     const prompt = `
     Write a LinkedIn post based on this interaction.
