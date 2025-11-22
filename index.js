@@ -1,4 +1,3 @@
-cat > index.js << 'EOF'
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
@@ -51,7 +50,7 @@ app.post('/api/analyze-images', async (req, res) => {
   try {
     const { images } = req.body;
     
-    // System Prompt: Expert Analyst looking for technical details
+    // System Prompt: Expert Analyst
     const systemPrompt = `You are a Lead Fabricator. Analyze photos to extract technical details.`;
     
     const userPrompt = `Analyze these project photos for a LinkedIn post.
@@ -134,4 +133,3 @@ app.post('/api/generate-post', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
 });
-EOF
