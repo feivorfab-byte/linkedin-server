@@ -13,7 +13,7 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.static('public'));
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
-const MODEL_NAME = 'claude-sonnet-4-5-20250514';
+const MODEL_NAME = 'claude-sonnet-4-5-20250929';
 
 async function callClaude(messages, systemPrompt) {
   if (!CLAUDE_API_KEY) throw new Error("Server missing CLAUDE_API_KEY");
