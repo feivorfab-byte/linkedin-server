@@ -42,14 +42,16 @@ app.get('/', (req, res) => {
   res.send('LinkedIn Generator API is Running 🚀');
 });
 
+// 1. IMAGE ANALYSIS ENDPOINT
 app.post('/api/analyze-images', async (req, res) => {
   try {
     const { images, template } = req.body;
+    // Updated to be more "Technical/Curious" in the questioning phase too
     const prompt = `You are an expert trade show fabricator in Atlanta. Analyze these photos.
-    Context: The user wants to write a LinkedIn post about this project using the "${template || 'General'}" style.
+    Context: The user wants to write a professional project breakdown.
     
-    Generate 3 distinct, professional questions that the user (the fabricator) can answer to tell the story of this build.
-    The questions should prompt for technical details, challenges overcome, or material specs.
+    Generate 3 distinct, deep technical questions that would help the fabricator tell the story of this build.
+    Focus on: Materials used, specific engineering challenges, and fabrication techniques.
     
     Return ONLY a JSON array like this:
     [
@@ -69,6 +71,7 @@ app.post('/api/analyze-images', async (req, res) => {
     });
 
     const responseText = await callClaude([{ role: "user", content: messageContent }]);
+    // Extract JSON safely
     const jsonMatch = responseText.match(/\[.*\]/s);
     const questions = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
     
@@ -79,26 +82,39 @@ app.post('/api/analyze-images', async (req, res) => {
   }
 });
 
+// 2. POST GENERATION ENDPOINT (The one we polished!)
 app.post('/api/generate-post', async (req, res) => {
   try {
     const { question, answer, template } = req.body;
     
-    const prompt = `You are a professional LinkedIn Ghostwriter for a high-end trade show fabrication business.
+    // THE "ADAM SAVAGE / BLOG POST" PROMPT
+    const prompt = `You are an expert technical storyteller with the practical wisdom of a master builder.
     
-    TASK: Rewrite the following casual answer into a professional, engaging LinkedIn post.
+    TASK: Rewrite the following answer into a high-quality, narrative blog post.
     
     CONTEXT:
-    - Template Style: ${template || 'Standard'}
-    - The Prompt: "${question}"
-    - The User's Answer (Casual voice): "${answer}"
+    - The User's Input: "${answer}"
+    - The Question they answered: "${question}"
     
     GUIDELINES:
-    - Tone: Expert, capable, slightly technical but accessible. NOT sales-y.
-    - Formatting: Use short paragraphs, bullet points if needed.
-    - Emoji usage: Minimal and professional (🔧, 🏗️, 🚀).
-    - Ending: Include these hashtags: #tradeshows #customfabrication #exhibitdesign #eventprofs #atlantabusiness
+    - Tone: Professional, insightful, and grounded. Like a highly experienced fabricator sharing trade secrets.
+    - Format: A structured blog post with distinct paragraphs. 
+    - STRICTLY NO EMOJIS.
+    - STRICTLY NO BULLET POINTS (unless listing specs).
+    - Use Markdown Headers (##) to separate sections.
     
-    Return ONLY the post text.`;
+    STRUCTURE YOUR RESPONSE LIKE THIS:
+
+    ## The Challenge
+    [Write a narrative paragraph about the constraints or requirements.]
+
+    ## The Solution
+    [Write a detailed paragraph about the fabrication process, materials, or technique used.]
+
+    ## The Result
+    [Write a concluding paragraph about the impact or final quality.]
+
+    Return ONLY the markdown text.`;
 
     const post = await callClaude([{ role: "user", content: [{ type: "text", text: prompt }] }]);
     res.json({ post });
