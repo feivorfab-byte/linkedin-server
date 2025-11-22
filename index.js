@@ -18,9 +18,7 @@ app.use(express.static("public"));
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 
 // =====================================================
-//  TWO-MODEL SETUP
-//  - IMAGE_MODEL: Claude 3.5 Sonnet for image analysis
-//  - TEXT_MODEL: Claude 3.5 Sonnet for text generation
+//  MODEL SETUP
 // =====================================================
 const IMAGE_MODEL = "claude-sonnet-4-20250514";
 const TEXT_MODEL = "claude-sonnet-4-20250514";
@@ -34,7 +32,7 @@ async function callClaude(messages, systemPrompt, modelName) {
 
   const payload = {
     model: modelName,
-    max_tokens: 1500,
+    max_tokens: 3000,
     messages,
   };
 
@@ -139,20 +137,34 @@ app.post("/api/generate-post", async (req, res) => {
   try {
     const { question, answer } = req.body;
 
-    const systemPrompt = `You are a Master Fabricator. Your writing style is enthusiastic, technical, and accessible (like Adam Savage).
-Traits: Geek out on details, use active verbs, no corporate jargon.`;
+    const systemPrompt = `You are a Master Fabricator and storyteller. Your writing style is enthusiastic, technical, and accessible (like Adam Savage). You write detailed, engaging narratives that bring readers into the shop floor experience.
+
+Traits: 
+- Geek out on technical details and explain the "why" behind every decision
+- Use active verbs and vivid descriptions
+- No corporate jargon
+- Never use hyphens in your writing. Use alternative phrasing instead.
+- Write in a conversational but professional tone
+- Include specific details about materials, processes, and problem solving`;
 
     const prompt = `
-Write a LinkedIn post based on this interaction.
+Write a detailed, engaging LinkedIn post based on this interaction. The post should be substantial and thorough, approximately 300 to 400 words.
 
 Question: "${question}"
 Builder's Notes: "${answer}"
 
 REQUIREMENTS:
-- Create a narrative hook.
-- Explain the "How" and "Why".
-- Use minimal emojis (⚡️, 🛠️).
-- Hashtags: #maker #fabrication #tradeshows #buildprocess #atlantabusiness
+- Create a compelling narrative hook that draws readers in
+- Explain the technical "How" in detail, walking readers through the process
+- Explain the "Why" behind key decisions
+- Include specific details about materials, techniques, or challenges
+- Share lessons learned or insights that other makers could apply
+- Use minimal emojis (only ⚡️ or 🛠️ if needed, maximum 2 total)
+- End with a thought provoking question or call to action for your audience
+- Hashtags at the end: #maker #fabrication #tradeshows #buildprocess #atlantabusiness
+- IMPORTANT: Do not use any hyphens in your writing. Reword phrases to avoid them entirely.
+
+Write a thorough, detailed post that showcases expertise and brings the reader into the experience.
 `;
 
     const post = await callClaude(
@@ -175,7 +187,7 @@ app.post("/api/refine-post", async (req, res) => {
   try {
     const { currentPost, refinementPrompt } = req.body;
 
-    const systemPrompt = `You are a professional LinkedIn Ghostwriter specializing in fabrication and construction. Your task is to revise the provided LinkedIn post based on the user's instructions. Maintain the original professional, technical, and accessible tone.`;
+    const systemPrompt = `You are a professional LinkedIn Ghostwriter specializing in fabrication and construction. Your task is to revise the provided LinkedIn post based on the user's instructions. Maintain the original professional, technical, and accessible tone. Never use hyphens in your writing. Always reword phrases to avoid hyphens entirely.`;
 
     const prompt = `
 Please revise the following LinkedIn post:
@@ -187,7 +199,11 @@ ${currentPost}
 
 REFINEMENT INSTRUCTION: "${refinementPrompt}"
 
-Return ONLY the revised post text. Do not add any conversational text or explanation.
+IMPORTANT RULES:
+- Return ONLY the revised post text
+- Do not add any conversational text or explanation
+- Do not use any hyphens. Reword all phrases to avoid them.
+- Maintain or increase the level of detail and length
 `;
 
     const revisedPost = await callClaude(
