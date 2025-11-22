@@ -8,14 +8,12 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// ALLOWS THE UI TO LOAD (Removes the security block)
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.static('public'));
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
-// Using the model referenced in this server's code block
-const MODEL_NAME = 'claude-sonnet-4-5-20250929'; 
+const MODEL_NAME = 'claude-sonnet-4-5-20250514';
 
 async function callClaude(messages, systemPrompt) {
   if (!CLAUDE_API_KEY) throw new Error("Server missing CLAUDE_API_KEY");
@@ -28,30 +26,42 @@ async function callClaude(messages, systemPrompt) {
 
   if (systemPrompt) payload.system = systemPrompt;
 
-  const response = await axios.post(
-    'https://api.anthropic.com/v1/messages',
-    payload,
-    {
-      headers: {
-        'x-api-key': CLAUDE_API_KEY,
-        'anthropic-version': '2023-06-01',
-        'Content-Type': 'application/json'
+  try {
+    const response = await axios.post(
+      'https://api.anthropic.com/v1/messages',
+      payload,
+      {
+        headers: {
+          'x-api-key': CLAUDE_API_KEY,
+          'anthropic-version': '2023-06-01',
+          'Content-Type': 'application/json'
+        }
       }
+    );
+    
+    if (!response.data?.content?.[0]?.text) {
+      console.error("Unexpected API response:", JSON.stringify(response.data));
+      throw new Error("Unexpected response format from Claude API");
     }
-  );
-  return response.data.content[0].text;
+    
+    return response.data.content[0].text;
+  } catch (error) {
+    if (error.response) {
+      console.error("Claude API Error:", error.response.status, JSON.stringify(error.response.data));
+      throw new Error(`Claude API Error: ${error.response.data?.error?.message || error.message}`);
+    }
+    throw error;
+  }
 }
 
 // --- ROUTES ---
 
 app.post('/api/analyze-images', async (req, res) => {
   try {
-    // UPDATED: Destructure promptModifier
     const { images, promptModifier } = req.body;
     
     const systemPrompt = `You are a Lead Fabricator. Analyze photos to extract technical details.`;
     
-    // UPDATED: Inject promptModifier for recycling
     const userPrompt = `Analyze these project photos for a LinkedIn post.
     Generate 3 distinct questions for the builder to answer.
     Focus on: 1. Technical Challenges 2. Material Specs 3. Installation Logistics.
@@ -88,7 +98,6 @@ app.post('/api/generate-post', async (req, res) => {
   try {
     const { question, answer } = req.body;
     
-    // ADAM SAVAGE PERSONA
     const systemPrompt = `You are a Master Fabricator. Your writing style is enthusiastic, technical, and accessible (like Adam Savage).
     Traits: Geek out on details, use active verbs, no corporate jargon.`;
 
@@ -117,7 +126,6 @@ app.post('/api/generate-post', async (req, res) => {
   }
 });
 
-// NEW ROUTE: Refine Post
 app.post('/api/refine-post', async (req, res) => {
   try {
     const { currentPost, refinementPrompt } = req.body;
