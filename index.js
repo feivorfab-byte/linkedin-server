@@ -6,27 +6,54 @@ const axios = require('axios');
 
 dotenv.config();
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 10000;
 
-// Allow large payloads for images
 app.use(express.json({ limit: '50mb' }));
-// We relax helmet slightly to allow inline scripts for this simple UI
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors());
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
+
+// ✅ CONFIRMED: The correct ID for Sonnet 4.5
 const MODEL_NAME = 'claude-sonnet-4-5-20250929';
 
-// --- THE BACKEND LOGIC (BRAIN) ---
+// --- THE BRAIN (With Smarter Parsing) ---
 
 async function callClaude(messages) {
   if (!CLAUDE_API_KEY) throw new Error("Server missing CLAUDE_API_KEY");
-  const response = await axios.post(
-    'https://api.anthropic.com/v1/messages',
-    { model: MODEL_NAME, max_tokens: 2000, messages: messages },
-    { headers: { 'x-api-key': CLAUDE_API_KEY, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' } }
-  );
-  return response.data.content[0].text;
+  
+  try {
+    const response = await axios.post(
+      'https://api.anthropic.com/v1/messages',
+      {
+        model: MODEL_NAME,
+        max_tokens: 2000,
+        messages: messages
+      },
+      {
+        headers: {
+          'x-api-key': CLAUDE_API_KEY,
+          'anthropic-version': '2023-06-01',
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    // 🔍 SMART PARSING: Find the actual text block
+    // Sonnet 4.5 sometimes returns a "thinking" block first. We skip that.
+    const textBlock = response.data.content.find(block => block.type === 'text');
+    
+    if (!textBlock) {
+      console.error("🚨 Unexpected API Response:", JSON.stringify(response.data, null, 2));
+      throw new Error("Claude replied, but no text was found in the response.");
+    }
+
+    return textBlock.text;
+
+  } catch (error) {
+    console.error("🚨 API Error:", error.response ? error.response.data : error.message);
+    throw error; // Rethrow to be caught by the route handler
+  }
 }
 
 app.post('/api/analyze-images', async (req, res) => {
@@ -39,16 +66,21 @@ app.post('/api/analyze-images', async (req, res) => {
     [ { "id": 1, "text": "Question here?" }, { "id": 2, "text": "Question here?" }, { "id": 3, "text": "Question here?" } ]`;
 
     const messageContent = [{ type: "text", text: prompt }];
-    images.forEach(img => {
-      const base64Data = img.includes('base64,') ? img.split('base64,')[1] : img;
-      messageContent.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: base64Data } });
-    });
+    
+    if (images && Array.isArray(images)) {
+        images.forEach(img => {
+          const base64Data = img.includes('base64,') ? img.split('base64,')[1] : img;
+          messageContent.push({
+            type: "image",
+            source: { type: "base64", media_type: "image/jpeg", data: base64Data }
+          });
+        });
+    }
 
     const responseText = await callClaude([{ role: "user", content: messageContent }]);
     const jsonMatch = responseText.match(/\[.*\]/s);
     res.json({ questions: jsonMatch ? JSON.parse(jsonMatch[0]) : [] });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -77,12 +109,11 @@ app.post('/api/generate-post', async (req, res) => {
     const post = await callClaude([{ role: "user", content: [{ type: "text", text: prompt }] }]);
     res.json({ post });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// --- THE FRONTEND UI (FACE) ---
+// --- THE FACE (Web UI) ---
 
 app.get('/', (req, res) => {
   res.send(`
@@ -91,46 +122,29 @@ app.get('/', (req, res) => {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Fabricator AI</title>
+<title>Fabricator AI (Sonnet 4.5)</title>
 <style>
-  /* APPLE DESIGN SYSTEM CSS */
   :root { --bg: #F2F2F7; --card: #FFFFFF; --blue: #007AFF; --text: #1C1C1E; --gray: #8E8E93; }
   body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 20px; -webkit-font-smoothing: antialiased; }
   .container { max-width: 600px; margin: 0 auto; }
-  
   h1 { font-size: 34px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 20px; text-align: center; }
-  
   .card { background: var(--card); border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 20px; }
   .card-title { font-size: 17px; font-weight: 600; margin-bottom: 15px; color: var(--text); }
-  
-  /* Inputs */
   input[type="file"] { display: none; }
-  .file-upload { display: flex; align-items: center; justify-content: center; height: 50px; background: #E5F1FF; color: var(--blue); border-radius: 10px; font-weight: 600; cursor: pointer; transition: 0.2s; }
-  .file-upload:active { opacity: 0.7; }
-  
-  textarea { width: 100%; border: 1px solid #E5E5EA; border-radius: 8px; padding: 12px; font-size: 16px; font-family: inherit; box-sizing: border-box; -webkit-appearance: none; margin-top: 10px; }
-  textarea:focus { outline: none; border-color: var(--blue); }
-
-  /* Buttons */
+  .file-upload { display: flex; align-items: center; justify-content: center; height: 50px; background: #E5F1FF; color: var(--blue); border-radius: 10px; font-weight: 600; cursor: pointer; }
+  textarea { width: 100%; border: 1px solid #E5E5EA; border-radius: 8px; padding: 12px; font-size: 16px; font-family: inherit; margin-top: 10px; box-sizing: border-box; }
   button { width: 100%; background: var(--blue); color: white; border: none; padding: 16px; font-size: 17px; font-weight: 600; border-radius: 12px; cursor: pointer; margin-top: 10px; }
   button:disabled { opacity: 0.5; }
-  
-  /* Loading Spinner */
   .spinner { display: none; width: 20px; height: 20px; border: 3px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: white; animation: spin 1s ease-in-out infinite; margin: 0 auto; }
   @keyframes spin { to { transform: rotate(360deg); } }
-
-  /* Markdown Styling (Apple Notes Look) */
-  .result-content h2 { font-size: 22px; font-weight: 700; margin-top: 25px; margin-bottom: 10px; letter-spacing: -0.01em; }
+  .result-content h2 { font-size: 22px; font-weight: 700; margin-top: 25px; margin-bottom: 10px; }
   .result-content p { font-size: 17px; line-height: 1.5; margin-bottom: 15px; color: #3A3A3C; }
-  
   .hidden { display: none; }
 </style>
 </head>
 <body>
-
 <div class="container">
   <h1>Fabricator AI</h1>
-
   <div class="card" id="step1">
     <div class="card-title">1. Project Photos</div>
     <label class="file-upload">
@@ -140,30 +154,24 @@ app.get('/', (req, res) => {
     <div id="imageCount" style="text-align:center; margin-top:10px; color:var(--gray); font-size:14px;"></div>
     <button id="analyzeBtn" onclick="analyzeImages()" class="hidden">Analyze Project <div class="spinner" id="analyzeSpinner"></div></button>
   </div>
-
   <div class="card hidden" id="step2">
     <div class="card-title">2. Project Details</div>
     <div id="questionsContainer"></div>
   </div>
-
   <div class="card hidden" id="step3">
     <div class="card-title">3. The Story</div>
     <div id="resultOutput" class="result-content"></div>
     <button onclick="location.reload()" style="background:#E5E5EA; color:black; margin-top:20px;">Start New Project</button>
   </div>
 </div>
-
 <script>
   let selectedImages = [];
   let currentQuestions = [];
-
   function handleImageSelect() {
     const input = document.getElementById('imageInput');
     if (input.files.length > 0) {
       document.getElementById('analyzeBtn').classList.remove('hidden');
       document.getElementById('imageCount').innerText = input.files.length + " photo(s) selected";
-      
-      // Convert to Base64
       selectedImages = [];
       Array.from(input.files).forEach(file => {
         const reader = new FileReader();
@@ -172,12 +180,10 @@ app.get('/', (req, res) => {
       });
     }
   }
-
   async function analyzeImages() {
     const btn = document.getElementById('analyzeBtn');
     const spinner = document.getElementById('analyzeSpinner');
     btn.innerText = ""; btn.appendChild(spinner); spinner.style.display = "block"; btn.disabled = true;
-
     try {
       const res = await fetch('/api/analyze-images', {
         method: 'POST',
@@ -185,20 +191,15 @@ app.get('/', (req, res) => {
         body: JSON.stringify({ images: selectedImages })
       });
       const data = await res.json();
+      if (data.error) { alert("Error: " + data.error); btn.innerText = "Analyze Project"; btn.disabled = false; return; }
       currentQuestions = data.questions;
       renderQuestions();
-    } catch (e) {
-      alert("Error analyzing images");
-      btn.innerText = "Analyze Project"; btn.disabled = false;
-    }
+    } catch (e) { alert("Network Error"); btn.innerText = "Analyze Project"; btn.disabled = false; }
   }
-
   function renderQuestions() {
     document.getElementById('step1').classList.add('hidden');
-    const container = document.getElementById('step2');
+    document.getElementById('step2').classList.remove('hidden');
     const qBox = document.getElementById('questionsContainer');
-    container.classList.remove('hidden');
-    
     qBox.innerHTML = "";
     currentQuestions.forEach((q, index) => {
       const div = document.createElement('div');
@@ -212,12 +213,11 @@ app.get('/', (req, res) => {
       qBox.appendChild(div);
     });
   }
-
   async function generatePost(index) {
     const answer = document.getElementById('answer-'+index).value;
     const btn = event.target; 
+    const originalText = btn.innerText;
     btn.innerText = "Generating..."; btn.disabled = true;
-
     try {
       const res = await fetch('/api/generate-post', {
         method: 'POST',
@@ -225,22 +225,12 @@ app.get('/', (req, res) => {
         body: JSON.stringify({ question: currentQuestions[index].text, answer: answer })
       });
       const data = await res.json();
-      
-      // Show Result
+      if (data.error) { alert("Error: " + data.error); btn.innerText = originalText; btn.disabled = false; return; }
       document.getElementById('step2').classList.add('hidden');
       document.getElementById('step3').classList.remove('hidden');
-      
-      // Simple Markdown Parsing for the Apple Look
-      let html = data.post
-        .replace(/^## (.*$)/gim, '<h2>$1</h2>') // Convert ## Headers
-        .replace(/\\n/g, '<br>'); // Convert newlines
-      
+      let html = data.post.replace(/^## (.*$)/gim, '<h2>$1</h2>').replace(/\\n/g, '<br>');
       document.getElementById('resultOutput').innerHTML = html;
-      
-    } catch (e) {
-      alert("Error generating post");
-      btn.innerText = "Generate Section"; btn.disabled = false;
-    }
+    } catch (e) { alert("Error generating post"); btn.innerText = originalText; btn.disabled = false; }
   }
 </script>
 </body>
