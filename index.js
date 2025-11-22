@@ -14,7 +14,8 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.static('public'));
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
-const MODEL_NAME = 'claude-sonnet-4-5-20250929';
+// Using the model referenced in this server's code block
+const MODEL_NAME = 'claude-sonnet-4-5-20250929'; 
 
 async function callClaude(messages, systemPrompt) {
   if (!CLAUDE_API_KEY) throw new Error("Server missing CLAUDE_API_KEY");
@@ -45,13 +46,16 @@ async function callClaude(messages, systemPrompt) {
 
 app.post('/api/analyze-images', async (req, res) => {
   try {
-    const { images } = req.body;
+    // UPDATED: Destructure promptModifier
+    const { images, promptModifier } = req.body;
     
     const systemPrompt = `You are a Lead Fabricator. Analyze photos to extract technical details.`;
     
+    // UPDATED: Inject promptModifier for recycling
     const userPrompt = `Analyze these project photos for a LinkedIn post.
     Generate 3 distinct questions for the builder to answer.
     Focus on: 1. Technical Challenges 2. Material Specs 3. Installation Logistics.
+    ${promptModifier ? `\n\nADDITIONAL INSTRUCTION: ${promptModifier}` : ''}
     
     Return ONLY a JSON array like this:
     [
@@ -109,6 +113,38 @@ app.post('/api/generate-post', async (req, res) => {
     res.json({ post });
   } catch (error) {
     console.error("Generation Error:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// NEW ROUTE: Refine Post
+app.post('/api/refine-post', async (req, res) => {
+  try {
+    const { currentPost, refinementPrompt } = req.body;
+    
+    const systemPrompt = `You are a professional LinkedIn Ghostwriter specializing in fabrication and construction. Your task is to revise the provided LinkedIn post based on the user's instructions. Maintain the original professional, technical, and accessible tone.`;
+
+    const prompt = `
+    Please revise the following LinkedIn post:
+    
+    CURRENT POST:
+    ---
+    ${currentPost}
+    ---
+    
+    REFINEMENT INSTRUCTION: "${refinementPrompt}"
+    
+    Return ONLY the revised post text. Do not add any conversational text or explanation.
+    `;
+
+    const revisedPost = await callClaude(
+      [{ role: "user", content: [{ type: "text", text: prompt }] }],
+      systemPrompt
+    );
+    
+    res.json({ post: revisedPost });
+  } catch (error) {
+    console.error("Refinement Error:", error.message);
     res.status(500).json({ error: error.message });
   }
 });
