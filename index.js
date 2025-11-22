@@ -14,13 +14,16 @@ app.use(express.json({ limit: '50mb' }));
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 
+// UPDATED: Use the latest 3.5 Sonnet model
+const MODEL_NAME = 'claude-3-5-sonnet-20240620';
+
 async function callClaude(messages) {
   if (!CLAUDE_API_KEY) throw new Error("Server missing CLAUDE_API_KEY");
   
   const response = await axios.post(
     'https://api.anthropic.com/v1/messages',
     {
-      model: 'claude-3-sonnet-20240229',
+      model: MODEL_NAME,
       max_tokens: 1500,
       messages: messages
     },
@@ -58,6 +61,7 @@ app.post('/api/analyze-images', async (req, res) => {
     const messageContent = [{ type: "text", text: prompt }];
     
     images.forEach(img => {
+      // Ensure base64 is clean
       const base64Data = img.includes('base64,') ? img.split('base64,')[1] : img;
       messageContent.push({
         type: "image",
@@ -71,7 +75,7 @@ app.post('/api/analyze-images', async (req, res) => {
     
     res.json({ questions });
   } catch (error) {
-    console.error("Analysis Error:", error);
+    console.error("Analysis Error:", error.response ? error.response.data : error.message);
     res.status(500).json({ error: error.message });
   }
 });
@@ -100,7 +104,7 @@ app.post('/api/generate-post', async (req, res) => {
     const post = await callClaude([{ role: "user", content: [{ type: "text", text: prompt }] }]);
     res.json({ post });
   } catch (error) {
-    console.error("Generation Error:", error);
+    console.error("Generation Error:", error.response ? error.response.data : error.message);
     res.status(500).json({ error: error.message });
   }
 });
